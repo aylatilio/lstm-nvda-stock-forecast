@@ -1,4 +1,6 @@
-# NVDA Long Short Term Memory (LSTM) Forecast API (FastAPI + Docker)
+# NVDA Long Short Term Memory (LSTM) Stock Forecast API (FastAPI + Docker)
+
+- LSTM-based RNN with Dense regression head trained with TensorFlow/Keras
 
 This project trains an LSTM model to forecast the next-day closing price of NVDA
 using a time-series pipeline with exogenous proxies (SOXX, MU, QQQ) and serves
