@@ -1,13 +1,21 @@
-# NVDA Long Short Term Memory (LSTM) Stock Forecast API (FastAPI + Docker)
+```markdown
+![Python](https://img.shields.io/badge/Python-3.12-blue)
+![TensorFlow](https://img.shields.io/badge/TensorFlow-2.18-orange)
+![FastAPI](https://img.shields.io/badge/FastAPI-Async-success)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
+```
+
+# NVDA LSTM Stock Forecast API
+### NVDA Long Short Term Memory (LSTM) Stock Forecast API (FastAPI + Docker)
 
 - LSTM-based RNN with Dense regression head trained with TensorFlow/Keras
 
-This project trains an LSTM model to forecast the next-day closing price of NVDA
-using a time-series pipeline with exogenous proxies (SOXX, MU, QQQ) and serves
-predictions through a FastAPI REST API.
+Deep learning time-series forecasting pipeline using LSTM (TensorFlow/Keras),
+with robust data ingestion, reproducible training artifacts, and a production-ready
+FastAPI inference layer containerized with Docker.
 
-## Project Goals
-- Build an deep learning pipeline for time series forecasting
+- Build a deep learning pipeline for time series forecasting
 - Train and evaluate an LSTM model with clear metrics (MAE/RMSE/MAPE)
 - Save artifacts (model + scalers + metadata)
 - Serve predictions via FastAPI with Swagger docs
@@ -25,97 +33,80 @@ predictions through a FastAPI REST API.
 
 ---
 
+## Architecture
+
+```mermaid
+flowchart LR
+    A[Yahoo Finance / Stooq] --> B[Data Ingestion]
+    B --> C[Feature Engineering]
+    C --> D[LSTM Model]
+    D --> E[Artifacts Saved]
+    E --> F[FastAPI Service]
+    F --> G[Swagger / REST Client]
+```
+
+---
+
+## Model Design
+
+- Target: next-day log-return prediction
+- Loss: Mean Squared Error (MSE)
+- Metrics: MAE, RMSE (log-return space), MAPE (USD space)
+- Baseline 1: Zero log-return
+- Baseline 2: Persistence price model
+- Chronological train/validation/test split
+
+---
+
 ## Repository Structure
 
-- `app/`
-  - `main.py` — FastAPI entrypoint (Swagger UI)
-  - `schemas.py` — Pydantic request/response models
-  - `service.py` — model/scaler loading + inference logic
-- `src/`
-  - `utils.py` — shared utility helpers
-  - `data.py` — data ingestion (Yahoo + Stooq fallback) and merging
-  - `features.py` — feature engineering, scaling, windowing
-  - `train.py` — training script (saves artifacts)
-- `models/`
-  - `lstm_nvda.keras` — trained LSTM model
-  - `scaler_x.pkl` — feature scaler
-  - `scaler_y.pkl` — target scaler
-  - `scaler.pkl` — legacy scaler
-  - `meta.json` — dataset + training metadata and metrics
-- `notebooks/`
-- `tests/`
-- `Dockerfile`
-- `requirements.txt` — Python dependencies
-- `README.md`
-
-.
-├── app/
-│   ├── main.py              # FastAPI entrypoint (Swagger UI)
-│   ├── schemas.py           # Pydantic request/response models
-│   └── service.py           # Model + scaler loading and inference logic
+```text
+lstm-nvda-api/
 │
-├── src/
-│   ├── utils.py             # Shared utility helpers
-│   ├── data.py              # Data ingestion (Yahoo + Stooq fallback) and merging
-│   ├── features.py          # Feature engineering + scaling + windowing
-│   └── train.py             # LSTM training script (saves artifacts)
+├── app/                      # API layer
+│   ├── main.py               # FastAPI entrypoint
+│   ├── schemas.py            # Pydantic models
+│   └── service.py            # Model loading + inference logic
 │
-├── models/
-│   ├── lstm_nvda.keras      # Trained LSTM model
-│   ├── scaler_x.pkl         # Feature scaler
-│   ├── scaler_y.pkl         # Target scaler
-│   ├── scaler.pkl           # Legacy scaler
-│   └── meta.json            # Training metadata + evaluation metrics
+├── src/                      # ML pipeline
+│   ├── data.py               # Data ingestion (Yahoo + Stooq fallback)
+│   ├── features.py           # Feature engineering + scaling + windowing
+│   └── train.py              # Training script (saves artifacts)
 │
-├── notebooks/               # Eploratory notebooks
-├── tests/                   # Unit / integration tests
+├── models/                   # Trained artifacts
+│   ├── lstm_nvda.keras
+│   ├── scaler_x.pkl
+│   ├── scaler_y.pkl
+│   └── meta.json
 │
-├── Dockerfile               # Container definition (API deployment)
-├── requirements.txt         # Python dependencies
-└── README.md                # Project documentation
+├── tests/                    # Smoke tests / validation
+├── notebooks/                # Experiments / exploration
+│
+├── Dockerfile
+├── requirements.txt
+├── README.md
+└── LICENSE
+```
 
 ---
 
 ## Quick Start
 
-### 1. Install WSL (Windows PowerShell as Admin)
-```powershell
-wsl --install
-wsl --set-default-version 2
-```
+### 1. Environment Setup
 
-### 2. Update Ubuntu and install Python tools
-```bash
-sudo apt update && sudo apt upgrade -y
-sudo apt install python3 python3-venv python3-pip build-essential -y
-python3 --version
-```
-
-### 3. Create project folder
-```bash
-mkdir -p ~/projects/lstm-nvda-api && cd ~/projects/lstm-nvda-api
-```
-
-### 4. Create and activate virtualenv
+Create and activate virtualenv:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
 ```
 
-### 5. Install dependencies
+### 2. Install dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 6. Install CUDA runtime 
-```bash
-pip uninstall -y tensorflow
-pip install "tensorflow[and-cuda]==2.18.0"
-python -c "import tensorflow as tf; print(tf.__version__); print('GPUs:', tf.config.list_physical_devices('GPU'))"
-```
-
-### 7. Install yfinance lib
+### 4. Install yfinance lib
 ```bash
 pip install -U yfinance
 ```
@@ -134,7 +125,6 @@ After training completes, you should have:
 - models/lstm_nvda.keras
 - models/scaler_x.pkl
 - models/scaler_y.pkl
-- models/scaler.pkl
 - models/meta.json
 
 ## Running API
@@ -143,11 +133,7 @@ After training completes, you should have:
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
-
-- 🔎 API Documentation: [Swagger UI](http://localhost:8000/docs)
-- 📦 Local API Base URL: `http://localhost:8000`
-
+🔎 Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ## Docker
 
@@ -155,6 +141,7 @@ Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 docker build -t lstm-nvda-api .
 docker run -p 8000:8000 lstm-nvda-api
 ```
+
 ## Notes
 
 - Yahoo Finance sometimes fails inside certain networks/environments. This project includes a Stooq fallback to ensure reproducibility.
@@ -170,6 +157,7 @@ docker run -p 8000:8000 lstm-nvda-api
 - FastAPI inference service + Swagger
 - Dockerfile + container test
 
+---
 
 ## Common Issues
 
@@ -226,3 +214,8 @@ If the model does not outperform baseline:
 - Increase lookback window
 - Adjust LSTM architecture
 - Try predicting returns instead of raw price
+
+---
+
+## License
+This project is licensed under the MIT License.
