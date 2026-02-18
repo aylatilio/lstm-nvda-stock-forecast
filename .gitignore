@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Models / artifacts
+models/
+*.keras
+*.pkl
+*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

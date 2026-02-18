@@ -1,0 +1,30 @@
+# -----------------------
+# API runtime
+# -----------------------
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.8.2
+
+# -----------------------
+# Data ingestion / wrangling
+# -----------------------
+yfinance==0.2.43
+pandas==2.2.2
+numpy==2.0.2
+
+# -----------------------
+# ML utilities
+# -----------------------
+scikit-learn==1.5.2
+joblib==1.4.2
+
+# -----------------------
+# Deep Learning (TensorFlow)
+# WSL/Linux GPU setup: includes CUDA runtime libraries via pip
+# -----------------------
+tensorflow[and-cuda]==2.18.0
+
+# -----------------------
+# EDA / plots (training notebooks)
+# -----------------------
+matplotlib==3.9.2
