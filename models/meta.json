@@ -1,0 +1,207 @@
+{
+  "symbol": "NVDA",
+  "exogenous": [
+    "SOXX",
+    "MU",
+    "QQQ"
+  ],
+  "start_date": "2018-01-01",
+  "lookback": 60,
+  "horizon": 1,
+  "target_col": "nvda_logret_5d",
+  "tensorflow_version": "2.20.0",
+  "walk_forward": {
+    "n_folds": 3,
+    "test_size": 252,
+    "val_size": 126,
+    "min_train_size": 756,
+    "folds": [
+      {
+        "fold_id": 1,
+        "split": {
+          "fold_id": 1,
+          "train": [
+            0,
+            1135
+          ],
+          "val": [
+            1135,
+            1261
+          ],
+          "test": [
+            1261,
+            1513
+          ]
+        },
+        "metrics_logret": {
+          "mae": 0.05143706873059273,
+          "rmse": 0.06407280266284943
+        },
+        "baseline_zero_logret": {
+          "mae": 0.052535220980644226,
+          "rmse": 0.06770720332860947
+        },
+        "metrics_price_usd": {
+          "mae": 2.3286707401275635,
+          "rmse": 2.8304126262664795,
+          "mape": 5.1204609870910645
+        },
+        "baseline_persistence_price_usd": {
+          "mae": 2.3805723190307617,
+          "rmse": 3.014702558517456,
+          "mape": 5.112909317016602
+        }
+      },
+      {
+        "fold_id": 2,
+        "split": {
+          "fold_id": 2,
+          "train": [
+            0,
+            1387
+          ],
+          "val": [
+            1387,
+            1513
+          ],
+          "test": [
+            1513,
+            1765
+          ]
+        },
+        "metrics_logret": {
+          "mae": 0.06213083490729332,
+          "rmse": 0.07766912132501602
+        },
+        "baseline_zero_logret": {
+          "mae": 0.06083361431956291,
+          "rmse": 0.07667045295238495
+        },
+        "metrics_price_usd": {
+          "mae": 7.647960186004639,
+          "rmse": 9.419784545898438,
+          "mape": 6.213762283325195
+        },
+        "baseline_persistence_price_usd": {
+          "mae": 7.471002578735352,
+          "rmse": 9.283690452575684,
+          "mape": 6.051495552062988
+        }
+      },
+      {
+        "fold_id": 3,
+        "split": {
+          "fold_id": 3,
+          "train": [
+            0,
+            1639
+          ],
+          "val": [
+            1639,
+            1765
+          ],
+          "test": [
+            1765,
+            2017
+          ]
+        },
+        "metrics_logret": {
+          "mae": 0.03491339460015297,
+          "rmse": 0.04542257636785507
+        },
+        "baseline_zero_logret": {
+          "mae": 0.03472404554486275,
+          "rmse": 0.045726630836725235
+        },
+        "metrics_price_usd": {
+          "mae": 6.007629871368408,
+          "rmse": 7.762697696685791,
+          "mape": 3.454470157623291
+        },
+        "baseline_persistence_price_usd": {
+          "mae": 5.958670139312744,
+          "rmse": 7.7707295417785645,
+          "mape": 3.4285659790039062
+        }
+      }
+    ],
+    "aggregate": {
+      "metrics_logret": {
+        "mae": {
+          "mean": 0.04949376607934634,
+          "std": 0.011196117872249082
+        },
+        "rmse": {
+          "mean": 0.06238816678524017,
+          "std": 0.01321838149317449
+        }
+      },
+      "baseline_zero_logret": {
+        "mae": {
+          "mean": 0.04936429361502329,
+          "std": 0.010892458573671732
+        },
+        "rmse": {
+          "mean": 0.06336809570590655,
+          "std": 0.01300002366670786
+        }
+      },
+      "metrics_price_usd": {
+        "mae": {
+          "mean": 5.328086932500203,
+          "std": 2.2241169043883517
+        },
+        "rmse": {
+          "mean": 6.670964956283569,
+          "std": 2.798674192798934
+        },
+        "mape": {
+          "mean": 4.929564476013184,
+          "std": 1.1345349611761388
+        }
+      },
+      "baseline_persistence_price_usd": {
+        "mae": {
+          "mean": 5.270081679026286,
+          "std": 2.134437569627932
+        },
+        "rmse": {
+          "mean": 6.689707517623901,
+          "std": 2.6710183783833883
+        },
+        "mape": {
+          "mean": 4.864323616027832,
+          "std": 1.0851377867530718
+        }
+      }
+    },
+    "best_fold_by_test_rmse_logret": 3
+  },
+  "feature_cols": [
+    "nvda_open",
+    "nvda_high",
+    "nvda_low",
+    "nvda_close",
+    "nvda_volume",
+    "soxx_close",
+    "soxx_volume",
+    "mu_close",
+    "mu_volume",
+    "qqq_close",
+    "qqq_volume",
+    "nvda_ret_1d",
+    "nvda_logret_1d",
+    "nvda_sma_7",
+    "nvda_sma_21",
+    "nvda_vol_7",
+    "nvda_vol_21",
+    "nvda_rsi_14",
+    "soxx_ret_1d",
+    "soxx_vol_21",
+    "mu_ret_1d",
+    "mu_vol_21",
+    "qqq_ret_1d",
+    "qqq_vol_21"
+  ],
+  "close_col_name": "nvda_close"
+}
