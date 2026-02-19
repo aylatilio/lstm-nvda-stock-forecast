@@ -1,19 +1,16 @@
-```markdown
-![Python](https://img.shields.io/badge/Python-3.12-blue)
-![TensorFlow](https://img.shields.io/badge/TensorFlow-2.18-orange)
-![FastAPI](https://img.shields.io/badge/FastAPI-Async-success)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![TensorFlow](https://img.shields.io/badge/TensorFlow-2.18-FF6F00?logo=tensorflow&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Production-009688?logo=fastapi&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
-```
 
 # NVDA LSTM Stock Forecast API
 ### NVDA Long Short Term Memory (LSTM) Stock Forecast API (FastAPI + Docker)
 
 - LSTM-based RNN with Dense regression head trained with TensorFlow/Keras
 
-Deep learning time-series forecasting pipeline using LSTM (TensorFlow/Keras),
-with robust data ingestion, reproducible training artifacts, and a production-ready
-FastAPI inference layer containerized with Docker.
+Production-ready deep learning time-series forecasting pipeline using LSTM (TensorFlow/Keras),
+with robust data ingestion, reproducible training artifacts, and a containerized FastAPI inference layer.
 
 - Build a deep learning pipeline for time series forecasting
 - Train and evaluate an LSTM model with clear metrics (MAE/RMSE/MAPE)
@@ -45,6 +42,13 @@ flowchart LR
     F --> G[Swagger / REST Client]
 ```
 
+```mermaid
+flowchart LR
+    A[Artifacts: Model + Scalers + Meta] --> B[FastAPI Service]
+    B --> C[Load Window]
+    C --> D[Predict Log Return]
+    D --> E[Reconstruct USD Price]
+```
 ---
 
 ## Model Design
@@ -106,10 +110,7 @@ pip install -U pip
 pip install -r requirements.txt
 ```
 
-### 4. Install yfinance lib
-```bash
-pip install -U yfinance
-```
+---
 
 ## Training the Model
 
@@ -133,13 +134,40 @@ After training completes, you should have:
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+- Health Check
+```bash
+curl http://localhost:8000/health
+```
+
+- Predict
+```bash
+curl "http://localhost:8000/predict?symbol=NVDA"
+```
+
 🔎 Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
 
 ## Docker
 
+Build image:
 ```bash
-docker build -t lstm-nvda-api .
-docker run -p 8000:8000 lstm-nvda-api
+docker build -t lstm-nvda-api:dev .
+```
+
+Running on CPU:
+```bash
+docker run --rm -p 8000:8000 lstm-nvda-api:dev
+```
+
+Running on GPU:
+```bash
+docker run --rm --gpus all -p 8000:8000 lstm-nvda-api:dev
+```
+
+Verify GPU:
+```bash
+docker exec -it <container_name> python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
 ```
 
 ## Notes
