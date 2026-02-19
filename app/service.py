@@ -122,11 +122,12 @@ def load_artifacts(models_dir: str | Path = "models", allow_legacy_scaler: bool 
 # =============================================================================
 
 def _build_latest_window(
-    df_merged,  # pd.DataFrame, kept untyped here to avoid importing pandas in API layer
+    df_merged,
     symbol: str,
     feature_cols: list[str],
     lookback: int,
     scaler_x,
+    exogenous: list[str],
 ) -> tuple[np.ndarray, float]:
     """
     Build the most recent LSTM input window using training feature schema.
@@ -138,7 +139,11 @@ def _build_latest_window(
     sym = symbol.lower()
 
     # --- Step 1: rebuild engineered features exactly like training
-    df_feat = add_technical_features(df_merged, symbol=symbol)
+    df_feat = add_technical_features(
+        df_merged,
+        symbol=symbol,
+        exogenous=exogenous,
+    )
 
     # --- Step 2: ensure we have enough rows for the lookback window
     if len(df_feat) < lookback:
@@ -188,8 +193,12 @@ def predict_next_close(
     meta: dict[str, Any] = artifacts["meta"]
 
     # --- Read required inference config from metadata
-    feature_cols: list[str] = meta["feature_cols"]
-    lookback: int = int(meta["lookback"])
+    try:
+        feature_cols = meta["feature_cols"]
+        lookback = int(meta["lookback"])
+        exogenous = meta.get("exogenous", ["SOXX", "MU", "QQQ"])
+    except Exception as e:
+        raise ValueError(f"Invalid meta.json for inference: {type(e).__name__}: {e}")
 
     # --- Build the latest input window
     X_window_scaled, close_t_usd = _build_latest_window(
@@ -198,6 +207,7 @@ def predict_next_close(
         feature_cols=feature_cols,
         lookback=lookback,
         scaler_x=scaler_x,
+        exogenous=exogenous,
     )
 
     # --- Predict scaled log-return, then inverse-transform to natural log-return space

@@ -1,17 +1,33 @@
-# Python
+# venv / python cache
 .venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Models / artifacts
-models/
-*.keras
-*.pkl
-*.json
-
-# OS
+# git / editor / os
+.git/
+.gitignore
+.vscode/
 .DS_Store
-Thumbs.db
 
-# Logs
-*.log
+# data artifacts
+data/
+models/
+*.csv
+*.parquet
+
+# notebooks
+.ipynb_checkpoints/
+notebooks/
+
+# build outputs
+dist/
+build/
+*.egg-info/
+
+# tests
+tests/

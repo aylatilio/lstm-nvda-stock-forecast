@@ -98,6 +98,12 @@ def add_technical_features(
     # logret_1d: log(close_t) - log(close_{t-1})
     df[f"{sym}_ret_1d"] = _safe_pct_change(close)
     df[f"{sym}_logret_1d"] = np.log(close).diff()
+    
+    # --- Block 2b: forward 5-day log-return (prediction target)
+    # logret_5d(t) = log(close(t+5)) - log(close(t))
+    # This represents the 5-day forward return starting at time t.
+    df[f"{sym}_logret_5d"] = np.log(close.shift(-5)) - np.log(close)
+
 
     # --- Block 3: moving averages (trend proxies)
     df[f"{sym}_sma_7"] = close.rolling(7).mean()
@@ -313,6 +319,131 @@ def prepare_datasets(
         "n_samples": n,
         "n_features": len(feature_cols),
         "feature_cols": feature_cols,
+        "start_date": str(df_feat.index.min().date()),
+        "end_date": str(df_feat.index.max().date()),
+    }
+
+    return DatasetBundle(
+        X_train=X_train,
+        y_train=y_train,
+        X_val=X_val,
+        y_val=y_val,
+        X_test=X_test,
+        y_test=y_test,
+        scaler_x=scaler_x,
+        scaler_y=scaler_y,
+        feature_cols=feature_cols,
+        target_col=target_col,
+        df_feat=df_feat,
+        meta=meta,
+    )
+
+def prepare_datasets_from_feature_frame(
+    df_feat: pd.DataFrame,
+    *,
+    symbol: str,
+    split,
+    lookback: int,
+    horizon: int,
+    target_col: str,
+    feature_cols: list[str] | None = None,
+) -> DatasetBundle:
+    """
+    Prepare train/val/test datasets for a specific walk-forward split.
+
+    This function is designed for walk-forward backtesting:
+    - Feature engineering is assumed to be DONE already (df_feat is clean).
+    - Scalers are fit ONLY on the training slice to prevent leakage.
+    - Windows are built within each slice independently.
+
+    Parameters
+    ----------
+    df_feat : pd.DataFrame
+        Feature-engineered dataframe with no NaNs (output of add_technical_features()).
+    symbol : str
+        Target ticker symbol (e.g., "NVDA").
+    split : FoldSplit
+        Train/val/test index ranges (Python slicing [start, end)).
+    lookback : int
+        Number of timesteps in each input window.
+    horizon : int
+        Forecast horizon for windowing (keep 1 if target is forward-return like logret_5d).
+    target_col : str
+        Column to predict (must exist in df_feat).
+    feature_cols : list[str] | None
+        Optional explicit feature column list. If None, it is inferred similarly
+        to prepare_datasets().
+
+    Returns
+    -------
+    DatasetBundle
+        Bundle with splits, scalers, column names and metadata.
+    """
+    sym = symbol.lower()
+
+    if target_col not in df_feat.columns:
+        raise ValueError(f"Target column '{target_col}' not found in feature frame.")
+
+    # --- Block 1: Feature columns: reuse the same default logic, but allow explicit override
+    if feature_cols is None:
+        base_cols = [
+            f"{sym}_open",
+            f"{sym}_high",
+            f"{sym}_low",
+            f"{sym}_close",
+            f"{sym}_volume",
+            "soxx_close",
+            "soxx_volume",
+            "mu_close",
+            "mu_volume",
+            "qqq_close",
+            "qqq_volume",
+        ]
+        engineered = [c for c in df_feat.columns if c not in base_cols and c != target_col]
+        feature_cols = [c for c in base_cols if c in df_feat.columns] + engineered
+
+    # --- Block 2: Slice by split indices (IMPORTANT: no leakage)
+    df_train = df_feat.iloc[split.train_start : split.train_end].copy()
+    df_val = df_feat.iloc[split.val_start : split.val_end].copy()
+    df_test = df_feat.iloc[split.test_start : split.test_end].copy()
+
+    # --- Block 3: Extract raw arrays
+    X_train_raw = df_train[feature_cols].astype(np.float32).values
+    y_train_raw = df_train[[target_col]].astype(np.float32).values
+
+    X_val_raw = df_val[feature_cols].astype(np.float32).values
+    y_val_raw = df_val[[target_col]].astype(np.float32).values
+
+    X_test_raw = df_test[feature_cols].astype(np.float32).values
+    y_test_raw = df_test[[target_col]].astype(np.float32).values
+
+    # --- Block 4: Fit scalers ONLY on train
+    scaler_x = MinMaxScaler()
+    scaler_y = MinMaxScaler()
+
+    X_train_scaled = scaler_x.fit_transform(X_train_raw)
+    y_train_scaled = scaler_y.fit_transform(y_train_raw)
+
+    # --- Block 5: Transform val/test using train-fitted scalers
+    X_val_scaled = scaler_x.transform(X_val_raw)
+    y_val_scaled = scaler_y.transform(y_val_raw)
+
+    X_test_scaled = scaler_x.transform(X_test_raw)
+    y_test_scaled = scaler_y.transform(y_test_raw)
+
+    # --- Block 6: Windowing inside each slice
+    X_train, y_train = make_windows_xy(X_train_scaled, y_train_scaled, lookback=lookback, horizon=horizon)
+    X_val, y_val = make_windows_xy(X_val_scaled, y_val_scaled, lookback=lookback, horizon=horizon)
+    X_test, y_test = make_windows_xy(X_test_scaled, y_test_scaled, lookback=lookback, horizon=horizon)
+
+    meta = {
+        "symbol": symbol,
+        "target_col": target_col,
+        "lookback": lookback,
+        "horizon": horizon,
+        "n_features": len(feature_cols),
+        "feature_cols": feature_cols,
+        "split": split.as_dict() if hasattr(split, "as_dict") else None,
         "start_date": str(df_feat.index.min().date()),
         "end_date": str(df_feat.index.max().date()),
     }

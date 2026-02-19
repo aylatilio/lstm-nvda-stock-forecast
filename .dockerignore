@@ -7,14 +7,17 @@ __pycache__/
 .git/
 .gitignore
 
-data/
-*.csv
-*.parquet
-
 .ipynb_checkpoints/
 .vscode/
 .DS_Store
 
+data/
+*.csv
+*.parquet
+
 dist/
 build/
 *.egg-info/
+
+notebooks/
+tests/

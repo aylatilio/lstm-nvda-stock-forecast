@@ -1,64 +1,88 @@
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
-![TensorFlow](https://img.shields.io/badge/TensorFlow-2.18-FF6F00?logo=tensorflow&logoColor=white)
+![TensorFlow](https://img.shields.io/badge/TensorFlow-2.20-FF6F00?logo=tensorflow&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-Production-009688?logo=fastapi&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 # NVDA LSTM Stock Forecast API
-### NVDA Long Short Term Memory (LSTM) Stock Forecast API (FastAPI + Docker)
+### Deep Learning Time-Series Forecasting with FastAPI + Docker
 
-- LSTM-based RNN with Dense regression head trained with TensorFlow/Keras
+- LSTM-based recurrent neural network with a Dense regression head trained using TensorFlow/Keras
 
-Production-ready deep learning time-series forecasting pipeline using LSTM (TensorFlow/Keras),
-with robust data ingestion, reproducible training artifacts, and a containerized FastAPI inference layer.
+Production-ready deep learning time-series forecasting pipeline featuring:
+- Robust market data ingestion (Stooq + Yahoo Finance fallback)
+- Walk-forward evaluation with strong baselines
+- Reproducible training artifacts
+- Containerized FastAPI inference layer
+- CPU and GPU Docker support
 
-- Build a deep learning pipeline for time series forecasting
-- Train and evaluate an LSTM model with clear metrics (MAE/RMSE/MAPE)
-- Save artifacts (model + scalers + metadata)
-- Serve predictions via FastAPI with Swagger docs
-- Containerize the API using Docker for reproducible deployment
+### What This Project Does
+
+- Builds a deep learning pipeline for financial time-series forecasting
+- Trains and evaluates an LSTM model using walk-forward splits
+- Benchmarks performance against strong naive baselines
+- Saves reproducible artifacts (model + scalers + metadata)
+- Serves predictions via FastAPI (Swagger included)
+- Supports reproducible deployment using Docker
 
 ---
 
 ## Tech Stack
-- Python 3.12 (WSL)
+
+- Python 3.12
 - TensorFlow / Keras (LSTM)
 - Pandas / NumPy / Scikit-learn
-- yfinance + Stooq fallback (data ingestion)
+- Stooq + yfinance fallback (data ingestion)
 - FastAPI + Uvicorn
-- Docker
+- Docker (CPU + optional GPU)
 
 ---
 
 ## Architecture
 
+### Training Pipeline
 ```mermaid
 flowchart LR
-    A[Yahoo Finance / Stooq] --> B[Data Ingestion]
-    B --> C[Feature Engineering]
-    C --> D[LSTM Model]
-    D --> E[Artifacts Saved]
-    E --> F[FastAPI Service]
-    F --> G[Swagger / REST Client]
+    subgraph Data Sources
+        S[Stooq - Default]
+        Y[Yahoo - Optional]
+    end
+
+    S --> I[Ingestion Layer]
+    Y --> I
+
+    I --> F[Feature Engineering]
+    F --> M[LSTM Training]
+    M --> A[Artifacts]
+    A --> API[FastAPI Inference Layer]
 ```
 
+### Inference Pipeline
 ```mermaid
 flowchart LR
-    A[Artifacts: Model + Scalers + Meta] --> B[FastAPI Service]
-    B --> C[Load Window]
-    C --> D[Predict Log Return]
+    A[Artifacts: Model / Scalers / Meta] --> B[FastAPI Service]
+    B --> C[Build Latest Window]
+    C --> D[Predict 5D Log Return]
     D --> E[Reconstruct USD Price]
 ```
 ---
 
 ## Model Design
 
-- Target: next-day log-return prediction
+- Target: 5-day forward log-return (nvda_logret_5d)
 - Loss: Mean Squared Error (MSE)
-- Metrics: MAE, RMSE (log-return space), MAPE (USD space)
-- Baseline 1: Zero log-return
-- Baseline 2: Persistence price model
-- Chronological train/validation/test split
+- Evaluation Metrics:
+    - MAE / RMSE (log-return space)
+    - MAPE (USD reconstructed space)
+- Baselines:
+    - Zero log-return (predict no change)
+    - Persistence model (close(t+5) ≈ close(t))
+- Validation: Walk-forward chronological splits (no leakage)
+
+The API reconstructs the predicted USD price using:
+```lua
+close_hat(t+5) = close(t) * exp(predicted_logret_5d)
+```
 
 ---
 
@@ -77,28 +101,31 @@ lstm-nvda-api/
 │   ├── features.py           # Feature engineering + scaling + windowing
 │   └── train.py              # Training script (saves artifacts)
 │
-├── models/                   # Trained artifacts
+├── models/                   # Trained artifacts (Option A default)
 │   ├── lstm_nvda.keras
 │   ├── scaler_x.pkl
 │   ├── scaler_y.pkl
 │   └── meta.json
 │
-├── tests/                    # Smoke tests / validation
-├── notebooks/                # Experiments / exploration
+├── tests/                    # Smoke tests
+├── notebooks/                # Experiments
 │
-├── Dockerfile
+├── Dockerfile.cpu
+├── Dockerfile.gpu
+├── .dockerignore
 ├── requirements.txt
+├── requirements.cpu.txt
+├── requirements.gpu.txt
 ├── README.md
 └── LICENSE
 ```
 
 ---
 
-## Quick Start
+## Quick Start (Local Development)
 
-### 1. Environment Setup
+### 1. Create virtual environment
 
-Create and activate virtualenv:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -110,59 +137,73 @@ pip install -U pip
 pip install -r requirements.txt
 ```
 
----
-
-## Training the Model
-
-### 1. Run training
+### 3. Training the Model
 ```bash
 python -m src.train
 ```
 
-### 2. Expected outputs (saved artifacts)
-
-After training completes, you should have:
+### 4. Expected outputs (saved artifacts)
 
 - models/lstm_nvda.keras
 - models/scaler_x.pkl
 - models/scaler_y.pkl
 - models/meta.json
 
-## Running API
+* These artifacts are required by the API.
+
+---
+
+## Running the API (Local)
 
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-- Health Check
+- Health Check:
 ```bash
 curl http://localhost:8000/health
 ```
 
-- Predict
+- Prediction:
 ```bash
-curl "http://localhost:8000/predict?symbol=NVDA"
+curl "http://localhost:8000/predict?symbol=NVDA&start=2024-01-01"
 ```
 
 🔎 Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-## Docker
+## Docker Deployment
 
-Build image:
+## Option A (Default – Pretrained Artifacts Included)
+
+The repository includes the trained artifacts inside models/.
+You can run the API immediately without retraining.
+
+### CPU Version (Portable)
+
+Build:
 ```bash
-docker build -t lstm-nvda-api:dev .
+docker build -f Dockerfile.cpu -t nvda-lstm-api:cpu .
 ```
 
-Running on CPU:
+Run:
 ```bash
-docker run --rm -p 8000:8000 lstm-nvda-api:dev
+docker run --rm -p 8000:8000 nvda-lstm-api:cpu
 ```
 
-Running on GPU:
+### GPU Version (Optional)
+
+Requires NVIDIA Container Toolkit.
+
+Build:
 ```bash
-docker run --rm --gpus all -p 8000:8000 lstm-nvda-api:dev
+docker build -f Dockerfile.gpu -t nvda-lstm-api:gpu .
+```
+
+Run:
+```bash
+docker run --rm --gpus all -p 8000:8000 nvda-lstm-api:gpu
 ```
 
 Verify GPU:
@@ -170,78 +211,29 @@ Verify GPU:
 docker exec -it <container_name> python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
 ```
 
-## Notes
+## Option B (Enterprise Blueprint – External Artifacts)
 
-- Yahoo Finance sometimes fails inside certain networks/environments. This project includes a Stooq fallback to ensure reproducibility.
-- Training and evaluation follow time-series best practices (chronological splits).
-
-## Steps
-
-- WSL + Docker setup
-- Data ingestion with fallback
-- Feature engineering + windowing
-- LSTM training + artifacts
-- Improve metrics reporting (USD space + baseline comparison)
-- FastAPI inference service + Swagger
-- Dockerfile + container test
+- For production environments:
+    - Store artifacts externally (S3, GCS, mounted volume)
+    - Load via configurable MODELS_DIR
+    - Separate training pipeline (CI/CD)
+    - Promote versioned artifacts to production
 
 ---
 
-## Common Issues
+## Benchmarks
 
-### 1. Yahoo Finance failing (YFTzMissingError / timezone error)
+| Model                | Target space |      MAE |     RMSE | MAPE (USD) |
+| -------------------- | -----------: | -------: | -------: | ---------: |
+| Zero log-return      |       logret | 0.021025 | 0.030083 |          — |
+| LSTM                 |       logret | 0.021566 | 0.030674 |          — |
+| Persistence price    |    USD close |   3.1058 |   4.2072 |    2.1056% |
+| LSTM (reconstructed) |    USD close |   3.1709 |   4.2683 |    2.1517% |
 
-```bash
-YFTzMissingError('$%ticker%: possibly delisted; no timezone found')
-```
+Time-series forecasting is inherently difficult.
+Strong naive baselines often perform competitively.
 
-Yahoo Finance occasionally fails due to:
-- Network restrictions
-- Rate limiting
-- Invalid JSON response
-- Corporate firewall filtering
-
-This project includes a fallback to **Stooq**.
-If Yahoo fails, the system automatically attempts to download data from Stooq.
-
-If both fail:
-- Check internet access inside WSL
-- Try pinging external domains:
-```bash
-  ping google.com
-```
-### 2. TensorFlow CUDA/cuDNN/GPU warnings
-
-```bash
-Could not find cuda drivers on your machine, GPU will not be used.
-Unable to register cuDNN factory
-```
-
-TensorFlow was installed with GPU support, but CUDA drivers are not available.
-Impact: None. The model runs normally on CPU.
-
-If you want to silence logs add this before running training:
-```bash
-export TF_CPP_MIN_LOG_LEVEL=2
-```
-
-### 3. Docker permission denied inside WSL
-
-If docker run fails with permission errors:
-```bash
-sudo usermod -aG docker $USER
-```
-Then close and reopen the WSL terminal.
-
-### 4. Model metrics seem high (MAPE > 20%)
-
-Time series forecasting is inherently difficult. Always compare model performance against a simple baseline (persistence model).
-
-If the model does not outperform baseline:
-
-- Increase lookback window
-- Adjust LSTM architecture
-- Try predicting returns instead of raw price
+This repository documents a reproducible deep learning workflow ready for iterative improvement.
 
 ---
 

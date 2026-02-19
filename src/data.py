@@ -213,26 +213,94 @@ def download_prices(
     start: str,
     end: str,
     *,
+    provider: str = "auto",   # "auto" | "yahoo" | "stooq"
     allow_fallback: bool = True,
     strict: bool = True,
     yahoo_retries: int = 2,
     yahoo_sleep_s: float = 1.0,
 ) -> tuple[pd.DataFrame, TickerIngestionReport]:
     """
-    Attempt to download OHLCV data using multiple sources.
+    Download normalized OHLCV data for a single ticker using a configurable provider.
 
-    Strategy:
-    1) Try Yahoo Finance (retries)
-    2) If Yahoo fails and allow_fallback=True, fallback to Stooq
-    3) Restrict Stooq data to requested date range
+    Parameters
+    ----------
+    ticker : str
+        Asset symbol (e.g., "NVDA").
+    start : str
+        Start date (YYYY-MM-DD).
+    end : str
+        End date (YYYY-MM-DD).
+    provider : {"auto", "yahoo", "stooq"}, default="auto"
+        - "auto": try Yahoo first, then fallback to Stooq (if allowed).
+        - "yahoo": use Yahoo only.
+        - "stooq": use Stooq only.
+    allow_fallback : bool
+        If True and provider="auto", allows fallback to Stooq when Yahoo fails.
+    strict : bool
+        If True, raise DataDownloadError when no usable data is retrieved.
+        If False, return empty DataFrame and report diagnostics.
+    yahoo_retries : int
+        Number of retry attempts for Yahoo download.
+    yahoo_sleep_s : float
+        Sleep time (seconds) between Yahoo retry attempts.
 
-    Returns:
-    - df: normalized OHLCV
-    - report: ingestion diagnostics
+    Returns
+    -------
+    df : pd.DataFrame
+        Normalized OHLCV DataFrame indexed by datetime with columns:
+        ["open", "high", "low", "close", "volume"].
+    report : TickerIngestionReport
+        Diagnostic report describing source attempts and outcome.
+
+    Raises
+    ------
+    DataDownloadError
+        If strict=True and no provider returns usable OHLCV data.
     """
     report = TickerIngestionReport(ticker=ticker, start=start, end=end)
 
-    # 1) Yahoo
+    provider = provider.lower().strip()
+
+    # --- stooq-only mode
+    if provider == "stooq":
+        df_stooq = download_stooq_us(ticker)
+        if _is_usable_ohlcv(df_stooq):
+            report.stooq_ok = True
+            report.source_used = "stooq"
+
+            df_stooq = df_stooq.sort_index()
+            df_stooq = df_stooq.loc[
+                (df_stooq.index >= pd.to_datetime(start)) &
+                (df_stooq.index <= pd.to_datetime(end))
+            ]
+
+            if _is_usable_ohlcv(df_stooq):
+                return df_stooq, report
+
+            report.stooq_ok = False
+            report.stooq_error = "Stooq returned data, but after date filtering it became unusable."
+
+        report.stooq_ok = False
+        report.stooq_error = "Stooq returned empty/unusable OHLCV."
+
+        if strict:
+            raise DataDownloadError(f"Failed to download data for {ticker} using Stooq-only mode.")
+        return pd.DataFrame(), report
+
+    # --- yahoo-only mode
+    if provider == "yahoo":
+        df_yahoo = download_yahoo(ticker, start, end, retries=yahoo_retries, sleep_s=yahoo_sleep_s)
+        if _is_usable_ohlcv(df_yahoo):
+            report.yahoo_ok = True
+            report.source_used = "yahoo"
+            return df_yahoo, report
+
+        report.yahoo_ok = False
+        report.yahoo_error = "Yahoo returned empty/unusable OHLCV."
+        if strict:
+            raise DataDownloadError(f"Failed to download data for {ticker} using Yahoo-only mode.")
+        return pd.DataFrame(), report
+
     df_yahoo = download_yahoo(ticker, start, end, retries=yahoo_retries, sleep_s=yahoo_sleep_s)
     if _is_usable_ohlcv(df_yahoo):
         report.yahoo_ok = True
@@ -242,7 +310,6 @@ def download_prices(
     report.yahoo_ok = False
     report.yahoo_error = "Yahoo returned empty/unusable OHLCV (see logs above)"
 
-    # 2) Optional fallback: Stooq
     if not allow_fallback:
         if strict:
             raise DataDownloadError(f"Yahoo failed for {ticker} and fallback disabled.")
@@ -253,7 +320,6 @@ def download_prices(
         report.stooq_ok = True
         report.source_used = "stooq"
 
-        # Restrict to requested period
         df_stooq = df_stooq.sort_index()
         df_stooq = df_stooq.loc[
             (df_stooq.index >= pd.to_datetime(start)) &
@@ -269,7 +335,6 @@ def download_prices(
         report.stooq_ok = False
         report.stooq_error = "Stooq returned empty/unusable OHLCV."
 
-    # 3) All failed
     if strict:
         raise DataDownloadError(
             f"Failed to download data for {ticker} from all allowed sources. "
@@ -289,6 +354,7 @@ def build_merged_frame(
     start: str = "2018-01-01",
     end: str | None = None,
     *,
+    provider: str = "stooq",
     strict: bool = True,
     allow_fallback: bool = True,
     strict_exogenous: bool = True,
@@ -326,6 +392,7 @@ def build_merged_frame(
         symbol,
         start,
         end,
+        provider=provider,
         allow_fallback=allow_fallback,
         strict=strict,
         yahoo_retries=yahoo_retries,
@@ -349,6 +416,7 @@ def build_merged_frame(
             t,
             start,
             end,
+            provider=provider,
             allow_fallback=allow_fallback,
             strict=(strict and strict_exogenous),
             yahoo_retries=yahoo_retries,

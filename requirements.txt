@@ -17,14 +17,10 @@ numpy==2.0.2
 # -----------------------
 scikit-learn==1.5.2
 joblib==1.4.2
+matplotlib==3.9.2
 
 # -----------------------
 # Deep Learning (TensorFlow)
-# WSL/Linux GPU setup: includes CUDA runtime libraries via pip
+# GPU will be used automatically on host if available (outside Docker or with proper runtime)
 # -----------------------
-tensorflow[and-cuda]==2.18.0
-
-# -----------------------
-# EDA / plots (training notebooks)
-# -----------------------
-matplotlib==3.9.2
+tensorflow==2.20.0
