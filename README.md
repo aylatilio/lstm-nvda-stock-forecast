@@ -9,12 +9,17 @@
 
 - LSTM-based recurrent neural network with a Dense regression head trained using TensorFlow/Keras
 
-Production-ready deep learning time-series forecasting pipeline featuring:
-- Robust market data ingestion (Stooq + Yahoo Finance fallback)
-- Walk-forward evaluation with strong baselines
-- Reproducible training artifacts
-- Containerized FastAPI inference layer
-- CPU and GPU Docker support
+* Local Deployment
+
+This project implements an LSTM-based time series forecasting pipeline to predict the 5-day forward log-return of NVDA and reconstruct the future USD closing price.
+
+The system includes:
+- Walk-forward model training
+- Baseline comparisons
+- Artifact versioning
+- End-to-end inference smoke tests
+- FastAPI service layer
+- CPU and GPU Docker deployments
 
 ### What This Project Does
 
@@ -32,9 +37,116 @@ Production-ready deep learning time-series forecasting pipeline featuring:
 - Python 3.12
 - TensorFlow / Keras (LSTM)
 - Pandas / NumPy / Scikit-learn
-- Stooq + yfinance fallback (data ingestion)
+- Stooq (data ingestion)
 - FastAPI + Uvicorn
 - Docker (CPU + optional GPU)
+
+---
+
+## Quick Start (Local Development)
+
+### 1. Create virtual environment
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+```
+
+### 2. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Training the Model
+```bash
+python -m src.train
+```
+
+### 4. Expected outputs (saved artifacts)
+
+- models/lstm_nvda.keras
+- models/scaler_x.pkl
+- models/scaler_y.pkl
+- models/meta.json
+
+These artifacts are required by the API.
+
+---
+
+## Running the API (Local)
+
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+- Health Check:
+```bash
+curl http://localhost:8000/health
+```
+
+- Runtime Check:
+```bash
+curl http://localhost:8000/runtime
+```
+
+- Prediction:
+```bash
+curl "http://localhost:8000/predict?symbol=NVDA&start=2024-01-01"
+```
+
+🔎 Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+## Docker Deployment
+
+The repository includes the trained artifacts inside models/.
+You can run the API immediately without retraining.
+
+### CPU Version (Portable)
+
+Build:
+```bash
+docker build -f Dockerfile.cpu -t nvda-lstm-api:cpu .
+```
+
+Run:
+```bash
+docker run --rm -p 8000:8000 nvda-lstm-api:cpu
+```
+
+Inference Smoke Test:
+```bash
+docker exec -it <container_name> python -m tests.smoke_test_service
+```
+
+### GPU Version
+
+Requires NVIDIA Container Toolkit.
+```bash
+nvidia-smi
+```
+
+Build:
+```bash
+docker build -f Dockerfile.gpu -t nvda-lstm-api:gpu .
+```
+
+Run:
+```bash
+docker run --rm --gpus all -p 8000:8000 nvda-lstm-api:gpu
+```
+
+Verify GPU:
+```bash
+docker exec -it <container_name> python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
+```
+
+Inference Smoke Test:
+```bash
+docker exec -it <container_name> python -m tests.smoke_test_service --use-gpu
+```
 
 ---
 
@@ -67,7 +179,106 @@ flowchart LR
 ```
 ---
 
-## Model Design
+## Repository Structure
+
+```text
+lstm-nvda-api/
+│
+├── app/                      # API layer
+│   ├── main.py               # FastAPI entrypoint
+│   └── service.py            # Model loading + inference logic
+│
+├── src/                      # ML pipeline
+│   ├── data.py               # Data ingestion (Stooq)
+│   ├── features.py           # Feature engineering + scaling + windowing
+│   ├── train.py              # Training script (saves artifacts)
+│   └── utils.py              # Utility helpers
+│
+├── models/                   # Trained artifacts
+│   ├── lstm_nvda.keras
+│   ├── scaler_x.pkl
+│   ├── scaler_y.pkl
+│   └── meta.json
+│
+├── tests/
+│   └── smoke_test_service.py
+│
+├── Dockerfile.cpu
+├── Dockerfile.gpu
+├── .dockerignore
+├── requirements.txt
+├── requirements.cpu.txt
+├── requirements.gpu.txt
+├── README.md
+└── LICENSE
+```
+
+---
+
+## Problem Definition
+
+Target:
+```lua
+nvda_logret_5d
+```
+
+Which represents:
+```lua
+log(close(t+5)) - log(close(t))
+```
+
+Reconstruction formula used by the API:
+```lua
+close_hat(t+5) = close(t) * exp(predicted_logret_5d)
+```
+
+---
+
+### Data
+
+Primary symbol:
+- NVDA
+
+Exogenous features:
+- SOXX
+- MU
+- QQQ
+
+Data source:
+- Stooq
+
+### Model Architecture
+
+- LSTM network
+- Lookback window: 60 timesteps
+- Loss: Mean Squared Error
+- Optimizer: Adam
+- Output: 5-day forward log-return
+
+### Validation Strategy
+
+Walk-forward chronological splits (3 folds):
+- Temporal integrity preserved
+- No leakage
+- Best fold selected by lowest test RMSE (log-return space)
+Best fold in this run: Fold 3
+
+### Metrics
+
+Log-return space:
+- MAE ≈ 0.061
+- RMSE ≈ 0.076
+
+Price reconstruction space:
+- MAE ≈ 5.94 USD
+- RMSE ≈ 7.53 USD
+- MAPE ≈ 5.86%
+
+Baselines:
+- Zero log-return baseline
+- Persistence price baseline
+
+### Model Design
 
 - Target: 5-day forward log-return (nvda_logret_5d)
 - Loss: Mean Squared Error (MSE)
@@ -84,156 +295,117 @@ The API reconstructs the predicted USD price using:
 close_hat(t+5) = close(t) * exp(predicted_logret_5d)
 ```
 
----
+Although the model is trained to predict 5-day forward log-return, the API returns the reconstructed 5-day ahead closing price in USD, satisfying the stock closing price forecasting requirement.
 
-## Repository Structure
+### Forecast Horizon
 
+This model predicts 5 trading days ahead.
+- Target: nvda_logret_5d
+- Forecast horizon: 5 days
+- Reconstruction:
 ```text
-lstm-nvda-api/
-│
-├── app/                      # API layer
-│   ├── main.py               # FastAPI entrypoint
-│   ├── schemas.py            # Pydantic models
-│   └── service.py            # Model loading + inference logic
-│
-├── src/                      # ML pipeline
-│   ├── data.py               # Data ingestion (Yahoo + Stooq fallback)
-│   ├── features.py           # Feature engineering + scaling + windowing
-│   └── train.py              # Training script (saves artifacts)
-│
-├── models/                   # Trained artifacts (Option A default)
-│   ├── lstm_nvda.keras
-│   ├── scaler_x.pkl
-│   ├── scaler_y.pkl
-│   └── meta.json
-│
-├── tests/                    # Smoke tests
-├── notebooks/                # Experiments
-│
-├── Dockerfile.cpu
-├── Dockerfile.gpu
-├── .dockerignore
-├── requirements.txt
-├── requirements.cpu.txt
-├── requirements.gpu.txt
-├── README.md
-└── LICENSE
+close_hat(t+5) = close(t) * exp(logret_5d_hat)
 ```
+
+### Why log-return instead of price?
+
+- Stabilizes variance
+- Improves training convergence
+- Reduces scale sensitivity
+- Reconstructed to USD at inference time
 
 ---
 
-## Quick Start (Local Development)
+## Results (Walk-forward, 3 folds)
 
-### 1. Create virtual environment
+- Target: nvda_logret_5d (5-day forward log-return), with price reconstructed as
+```lua
+close_hat(t+5) = close(t) * exp(logret_5d_hat)
+```
+- Best fold (selected by lowest test RMSE in log-return space): Fold 3
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -U pip
+Per-fold performance (log-return space):
+
+- Fold 1: MAE 0.0825, RMSE 0.1006
+```text
+Baseline (zero log-return): MAE 0.0526, RMSE 0.0678
 ```
 
-### 2. Install dependencies
-```bash
-pip install -r requirements.txt
+- Fold 2: MAE 0.0646, RMSE 0.0807
+```text
+Baseline (zero log-return): MAE 0.0610, RMSE 0.0767
 ```
 
-### 3. Training the Model
-```bash
-python -m src.train
+- Fold 3: MAE 0.0359, RMSE 0.0475
+```text
+Baseline (zero log-return): MAE 0.0340, RMSE 0.0445
 ```
 
-### 4. Expected outputs (saved artifacts)
+Aggregate across folds (mean ± std):
+- Log-return: MAE 0.0610 ± 0.0192, RMSE 0.0762 ± 0.0219
+- USD reconstructed price: MAE 5.94 ± 1.70, RMSE 7.53 ± 2.13, MAPE 5.86% ± 1.77%
 
-- models/lstm_nvda.keras
-- models/scaler_x.pkl
-- models/scaler_y.pkl
-- models/meta.json
-
-* These artifacts are required by the API.
+Note: financial forecasting is noisy and naive baselines are often competitive. The goal here is a reproducible end-to-end deep learning pipeline with honest time-series validation and deployable inference.
 
 ---
 
-## Running the API (Local)
+## Roadmap
 
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+This project establishes a reproducible deep learning pipeline for financial time-series forecasting. The next iterations focus on improving realism, robustness and production maturity.
 
-- Health Check:
-```bash
-curl http://localhost:8000/health
-```
+1) Uncertainty-Aware Forecasting
 
-- Prediction:
-```bash
-curl "http://localhost:8000/predict?symbol=NVDA&start=2024-01-01"
-```
+Current model outputs a single point estimate. Future versions may include:
+- Probabilistic forecasting (prediction intervals)
+    - MC Dropout (approximate Bayesian uncertainty)
+    - Quantile regression (P10 / P50 / P90 outputs)
+- API returning confidence bands instead of a single deterministic value
 
-🔎 Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+This is especially important in financial forecasting, where uncertainty is as relevant as the prediction itself.
 
----
 
-## Docker Deployment
+2) Continuous Temporal Evaluation
 
-## Option A (Default – Pretrained Artifacts Included)
+- Walk-forward continuous evaluation (rolling window instead of fixed folds)
+- Rolling retraining (e.g., monthly or quarterly)
+- Regime-aware validation across different volatility periods
+- Drift detection to trigger automated retraining
 
-The repository includes the trained artifacts inside models/.
-You can run the API immediately without retraining.
+This would simulate real production conditions more closely.
 
-### CPU Version (Portable)
 
-Build:
-```bash
-docker build -f Dockerfile.cpu -t nvda-lstm-api:cpu .
-```
+3) Strategy-Level Backtesting
 
-Run:
-```bash
-docker run --rm -p 8000:8000 nvda-lstm-api:cpu
-```
+Current evaluation focuses on error metrics (MAE / RMSE / MAPE).
+Next step is evaluating financial impact.
 
-### GPU Version (Optional)
+- Backtest a simple trading strategy using model outputs
+- Compare against:
+    - Buy & Hold
+    - Zero-return baseline
+    - Persistence baseline
 
-Requires NVIDIA Container Toolkit.
+This shifts evaluation from prediction accuracy to decision quality.
 
-Build:
-```bash
-docker build -f Dockerfile.gpu -t nvda-lstm-api:gpu .
-```
 
-Run:
-```bash
-docker run --rm --gpus all -p 8000:8000 nvda-lstm-api:gpu
-```
+4) Risk & Performance Metrics
 
-Verify GPU:
-```bash
-docker exec -it <container_name> python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"
-```
+Add finance-specific metrics:
+- Sharpe ratio (risk-adjusted return)
+- Maximum drawdown
+- Volatility
+- CAGR (compound annual growth rate)
+- Win rate
 
-## Option B (Enterprise Blueprint – External Artifacts)
+These metrics reflect deployability in real financial systems.
 
-- For production environments:
-    - Store artifacts externally (S3, GCS, mounted volume)
-    - Load via configurable MODELS_DIR
-    - Separate training pipeline (CI/CD)
-    - Promote versioned artifacts to production
 
----
+5) MLOps & Production Hardening
 
-## Benchmarks
-
-| Model                | Target space |      MAE |     RMSE | MAPE (USD) |
-| -------------------- | -----------: | -------: | -------: | ---------: |
-| Zero log-return      |       logret | 0.021025 | 0.030083 |          — |
-| LSTM                 |       logret | 0.021566 | 0.030674 |          — |
-| Persistence price    |    USD close |   3.1058 |   4.2072 |    2.1056% |
-| LSTM (reconstructed) |    USD close |   3.1709 |   4.2683 |    2.1517% |
-
-Time-series forecasting is inherently difficult.
-Strong naive baselines often perform competitively.
-
-This repository documents a reproducible deep learning workflow ready for iterative improvement.
+- Model registry (MLflow)
+- CI/CD pipeline for retraining and artifact promotion
+- Automated scheduled retraining jobs
+- Experiment tracking and version comparison
 
 ---
 

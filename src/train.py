@@ -19,6 +19,7 @@ from __future__ import annotations
 
 # ================= Standard Library =================
 import os
+import re
 import json
 from pathlib import Path
 from dataclasses import dataclass
@@ -332,6 +333,9 @@ def main() -> None:
     horizon = 1  # IMPORTANT: target already represents 5-day forward return
     target_col = "nvda_logret_5d"
 
+    m = re.search(r"_([0-9]+)d$", target_col)
+    forecast_horizon_days = int(m.group(1)) if m else 1
+
     max_epochs = 60
     batch_size = 32
 
@@ -425,6 +429,7 @@ def main() -> None:
         "lookback": lookback,
         "horizon": horizon,
         "target_col": target_col,
+        "forecast_horizon_days": forecast_horizon_days,
         "tensorflow_version": tf.__version__,
         "walk_forward": {
             "n_folds": len(fold_results),

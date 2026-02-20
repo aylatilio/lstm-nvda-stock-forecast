@@ -20,4 +20,3 @@ build/
 *.egg-info/
 
 notebooks/
-tests/
