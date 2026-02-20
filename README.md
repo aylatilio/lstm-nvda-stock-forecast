@@ -155,17 +155,18 @@ docker exec -it <container_name> python -m tests.smoke_test_service --use-gpu
 The following diagram illustrates the complete end-to-end architecture, from data ingestion and walk-forward training to artifact versioning and API inference.
 
 ```mermaid
-flowchart LR
+flowchart TD
     S[Stooq Data Source] --> I[Data Ingestion]
     I --> F[Feature Engineering]
-    F --> W[Walk-Forward Training<br/>3 Temporal Folds]
-    W --> B[Best Fold Selection<br/>Lowest Test RMSE]
+    F --> W[Walk-Forward Validation<br/>3 Temporal Folds]
+    W --> M[LSTM Training<br/>TensorFlow / Keras]
+    M --> B[Best Fold Selection<br/>Lowest Test RMSE]
     B --> A[Artifacts Saved<br/>Model + Scalers + Meta]
 
     A --> API[FastAPI Service]
     API --> L[Build Latest Lookback Window]
-    L --> P[Predict 5D Log-Return]
-    P --> R[Reconstruct Future USD Price<br/>close(t+5) = close(t) * exp(logret)]
+    L --> P[LSTM Inference<br/>Predict 5D Log-Return]
+    P --> R[Reconstruct Future USD Price]
     R --> O[JSON Response]
 ```
 ---
